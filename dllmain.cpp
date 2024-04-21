@@ -1553,7 +1553,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 		int CompileType = COMPILE_CPP;
 		int CompilerIDVersion = 29913;
 		int FeatureEnum = Report_Dev11 | C_CppModule | Unknown3 | SafeSEH | KernelAware;
-		memcpy(symbols[cursymbol].symbol.N.ShortName, "@comp.id", 8);
+		memcpy(symbols[cursymbol].symbol.N.ShortName, "@comp.id", IMAGE_SIZEOF_SHORT_NAME);
 		symbols[cursymbol].symbol.Value = (CompileType << 16) | CompilerIDVersion;
 		symbols[cursymbol].symbol.SectionNumber = IMAGE_SYM_ABSOLUTE;
 		symbols[cursymbol].symbol.Type = 0;
@@ -1561,7 +1561,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 		symbols[cursymbol].symbol.NumberOfAuxSymbols = 0;
 		cursymbol++;
 		cursymnum++;
-		memcpy(symbols[cursymbol].symbol.N.ShortName, "@feat.00", 8);
+		memcpy(symbols[cursymbol].symbol.N.ShortName, "@feat.00", IMAGE_SIZEOF_SHORT_NAME);
 		symbols[cursymbol].symbol.Value = FeatureEnum;
 		symbols[cursymbol].symbol.SectionNumber = IMAGE_SYM_ABSOLUTE;
 		symbols[cursymbol].symbol.Type = 0;
@@ -1569,7 +1569,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 		symbols[cursymbol].symbol.NumberOfAuxSymbols = 0;
 		cursymbol++;
 		cursymnum++;
-		memcpy(sections[cursection].Name, ".debug$S", 8);
+		memcpy(sections[cursection].Name, ".debug$S", IMAGE_SIZEOF_SHORT_NAME);
 		sections[cursection].Misc.VirtualSize = 0;
 		sections[cursection].VirtualAddress = 0;
 		sections[cursection].SizeOfRawData = DebugSize;
@@ -1584,7 +1584,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 		sectiondata[cursection] = DebugSSection;
 		cursection++;
 		CurrentFilePos += DebugSize;
-		memcpy(symbols[cursymbol].symbol.N.ShortName, ".debug$S", 8);
+		memcpy(symbols[cursymbol].symbol.N.ShortName, ".debug$S", IMAGE_SIZEOF_SHORT_NAME);
 		symbols[cursymbol].symbol.Value = 0;
 		symbols[cursymbol].symbol.SectionNumber = (SHORT)cursection;
 		symbols[cursymbol].symbol.Type = 0;
@@ -1604,7 +1604,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 		{
 			if (!DataSymbols[i].IsExtern)
 			{
-				memcpy(sections[cursection].Name, ".data\0\0\0", 8);
+				memcpy(sections[cursection].Name, ".data\0\0\0", IMAGE_SIZEOF_SHORT_NAME);
 				sections[cursection].Misc.VirtualSize = 0;
 				sections[cursection].VirtualAddress = 0;
 				sections[cursection].SizeOfRawData = DataSymbols[i].Size;
@@ -1656,7 +1656,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 				cursection++;
 				DataSymbols[i].SectionNumber = cursection;
 				DataSymbols[i].SectionSymbolNumber = cursymnum;
-				memcpy(symbols[cursymbol].symbol.N.ShortName, ".data\0\0\0", 8);
+				memcpy(symbols[cursymbol].symbol.N.ShortName, ".data\0\0\0", IMAGE_SIZEOF_SHORT_NAME);
 				symbols[cursymbol].symbol.Value = 0;
 				symbols[cursymbol].symbol.SectionNumber = (SHORT)cursection;
 				symbols[cursymbol].symbol.Type = 0;
@@ -1802,7 +1802,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 		{
 			if (!RDataSymbols[i].IsExtern)
 			{
-				memcpy(sections[cursection].Name, ".rdata\0\0", 8);
+				memcpy(sections[cursection].Name, ".rdata\0\0", IMAGE_SIZEOF_SHORT_NAME);
 				sections[cursection].Misc.VirtualSize = 0;
 				sections[cursection].VirtualAddress = 0;
 				sections[cursection].SizeOfRawData = RDataSymbols[i].Size;
@@ -1836,7 +1836,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 				cursection++;
 				RDataSymbols[i].SectionNumber = cursection;
 				RDataSymbols[i].SectionSymbolNumber = cursymnum;
-				memcpy(symbols[cursymbol].symbol.N.ShortName, ".rdata\0\0", 8);
+				memcpy(symbols[cursymbol].symbol.N.ShortName, ".rdata\0\0", IMAGE_SIZEOF_SHORT_NAME);
 				symbols[cursymbol].symbol.Value = 0;
 				symbols[cursymbol].symbol.SectionNumber = (SHORT)cursection;
 				symbols[cursymbol].symbol.Type = 0;
@@ -1895,7 +1895,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 		{
 			if (!BSSSymbols[i].IsExtern)
 			{
-				memcpy(sections[cursection].Name, ".bss\0\0\0", 8);
+				memcpy(sections[cursection].Name, ".bss\0\0\0", IMAGE_SIZEOF_SHORT_NAME);
 				sections[cursection].Misc.VirtualSize = 0;
 				sections[cursection].VirtualAddress = 0;
 				sections[cursection].SizeOfRawData = BSSSymbols[i].Size;
@@ -1947,7 +1947,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 				cursection++;
 				BSSSymbols[i].SectionNumber = cursection;
 				BSSSymbols[i].SectionSymbolNumber = cursymnum;
-				memcpy(symbols[cursymbol].symbol.N.ShortName, ".bss\0\0\0", 8);
+				memcpy(symbols[cursymbol].symbol.N.ShortName, ".bss\0\0\0", IMAGE_SIZEOF_SHORT_NAME);
 				symbols[cursymbol].symbol.Value = 0;
 				symbols[cursymbol].symbol.SectionNumber = (SHORT)cursection;
 				symbols[cursymbol].symbol.Type = 0;
