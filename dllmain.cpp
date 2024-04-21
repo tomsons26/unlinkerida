@@ -493,7 +493,7 @@ struct ahandler_unlink_t : public action_handler_t
 							{
 							case o_mem:
 							case o_displ:
-								if (!is_numop0(get_flags(k)))
+								if (!is_numop1(get_flags(k)))
 								{
 									if (is_code(get_flags(insn.ops[1].addr)))
 									{
