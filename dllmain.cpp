@@ -386,208 +386,112 @@ struct ahandler_unlink_t : public action_handler_t
 					int insn_size;
 					for (ea_t k = func_start; k < func_start + func_size; k += insn_size)
 					{
-						if (is_code(get_flags(k)) || is_align(get_flags(k)))
+						flags_t _flags = get_flags(k);
+						if (is_code(_flags) || is_align(_flags))
 						{
 							insn_size = decode_insn(&insn, k);
-							switch (insn.ops[0].type)
+							for (int index = 0; index < 2; index++)
 							{
-							case o_mem:
-							case o_displ:
-								if (!is_numop0(get_flags(k)))
+								switch (insn.ops[index].type)
 								{
-									if (is_code(get_flags(insn.ops[0].addr)))
+								case o_mem:
+								case o_displ:
+									if (!is_numop(_flags, index))
 									{
-										qstring func_name2;
-										if (get_func_name(&func_name2, insn.ops[0].addr) > 0)
+										if (is_code(get_flags(insn.ops[index].addr)))
 										{
-											unlink_entry e2;
-											e2.ea = insn.ops[0].addr;
-											e2.is_extern = (insn.ops[0].addr < func_start || insn.ops[0].addr > func_start + func_size);
-											e2.is_local = (insn.ops[0].addr > func_start && insn.ops[0].addr < func_start + func_size);
-											e2.module_index = i;
-											add_entry(e2);
+											qstring func_name2;
+											if (get_func_name(&func_name2, insn.ops[index].addr) > 0)
+											{
+												unlink_entry e2;
+												e2.ea = insn.ops[index].addr;
+												e2.is_extern = (insn.ops[index].addr < func_start || insn.ops[index].addr > func_start + func_size);
+												e2.is_local = (insn.ops[index].addr > func_start && insn.ops[index].addr < func_start + func_size);
+												e2.module_index = i;
+												add_entry(e2);
+											}
+										}
+										else if (is_data(get_flags(insn.ops[index].addr)))
+										{
+											qstring data_name2;
+											if (get_name(&data_name2, insn.ops[index].addr) > 0)
+											{
+												ea_t data_start = get_item_head(insn.ops[index].addr);
+												unlink_entry e2;
+												e2.ea = data_start;
+												e2.is_extern = (insn.ops[index].addr < func_start || insn.ops[index].addr > func_start + func_size);
+												e2.is_local = (insn.ops[index].addr > func_start && insn.ops[index].addr < func_start + func_size);
+												e2.module_index = i;
+												add_entry(e2);
+											}
 										}
 									}
-									else if (is_data(get_flags(insn.ops[0].addr)))
+									break;
+								case o_imm:
+									if (!is_numop(_flags, index))
 									{
-										qstring data_name2;
-										if (get_name(&data_name2, insn.ops[0].addr) > 0)
+										if (is_code(get_flags(insn.ops[index].value)))
 										{
-											ea_t data_start = get_item_head(insn.ops[0].addr);
-											unlink_entry e2;
-											e2.ea = data_start;
-											e2.is_extern = (insn.ops[0].addr < func_start || insn.ops[0].addr > func_start + func_size);
-											e2.is_local = (insn.ops[0].addr > func_start && insn.ops[0].addr < func_start + func_size);
-											e2.module_index = i;
-											add_entry(e2);
+											qstring func_name2;
+											if (get_func_name(&func_name2, insn.ops[index].value) > 0)
+											{
+												unlink_entry e2;
+												e2.ea = insn.ops[index].value;
+												e2.is_extern = (insn.ops[index].addr < func_start || insn.ops[index].addr > func_start + func_size);
+												e2.is_local = (insn.ops[index].addr > func_start && insn.ops[index].addr < func_start + func_size);
+												e2.module_index = i;
+												add_entry(e2);
+											}
+										}
+										else if (is_data(get_flags(insn.ops[index].value)))
+										{
+											qstring data_name2;
+											if (get_name(&data_name2, insn.ops[index].value) > 0)
+											{
+												ea_t data_start = get_item_head(insn.ops[index].value);
+												unlink_entry e2;
+												e2.ea = data_start;
+												e2.is_extern = (insn.ops[index].addr < func_start || insn.ops[index].addr > func_start + func_size);
+												e2.is_local = (insn.ops[index].addr > func_start && insn.ops[index].addr < func_start + func_size);
+												e2.module_index = i;
+												add_entry(e2);
+											}
 										}
 									}
+									break;
+								case o_near:
+									if (insn.ops[index].dtype == dt_dword && (insn.ops[index].addr < func_start || insn.ops[index].addr > func_start + func_size))
+									{
+										if (is_code(get_flags(insn.ops[index].addr)))
+										{
+											qstring func_name2;
+											if (get_func_name(&func_name2, insn.ops[index].addr) > 0)
+											{
+												unlink_entry e2;
+												e2.ea = insn.ops[index].addr;
+												e2.is_extern = true;
+												e2.is_local = false;
+												e2.module_index = i;
+												add_entry(e2);
+											}
+										}
+										else if (is_data(get_flags(insn.ops[index].addr)))
+										{
+											qstring data_name2;
+											if (get_name(&data_name2, insn.ops[index].addr) > 0)
+											{
+												ea_t data_start = get_item_head(insn.ops[index].addr);
+												unlink_entry e2;
+												e2.ea = data_start;
+												e2.is_extern = true;
+												e2.is_local = false;
+												e2.module_index = i;
+												add_entry(e2);
+											}
+										}
+									}
+									break;
 								}
-								break;
-							case o_imm:
-								if (!is_numop0(get_flags(k)))
-								{
-									if (is_code(get_flags(insn.ops[0].value)))
-									{
-										qstring func_name2;
-										if (get_func_name(&func_name2, insn.ops[0].value) > 0)
-										{
-											unlink_entry e2;
-											e2.ea = insn.ops[0].value;
-											e2.is_extern = (insn.ops[0].addr < func_start || insn.ops[0].addr > func_start + func_size);
-											e2.is_local = (insn.ops[0].addr > func_start && insn.ops[0].addr < func_start + func_size);
-											e2.module_index = i;
-											add_entry(e2);
-										}
-									}
-									else if (is_data(get_flags(insn.ops[0].value)))
-									{
-										qstring data_name2;
-										if (get_name(&data_name2, insn.ops[0].value) > 0)
-										{
-											ea_t data_start = get_item_head(insn.ops[0].value);
-											unlink_entry e2;
-											e2.ea = data_start;
-											e2.is_extern = (insn.ops[0].addr < func_start || insn.ops[0].addr > func_start + func_size);
-											e2.is_local = (insn.ops[0].addr > func_start && insn.ops[0].addr < func_start + func_size);
-											e2.module_index = i;
-											add_entry(e2);
-										}
-									}
-								}
-								break;
-							case o_near:
-								if (insn.ops[0].dtype == dt_dword && (insn.ops[0].addr < func_start || insn.ops[0].addr > func_start + func_size))
-								{
-									if (is_code(get_flags(insn.ops[0].addr)))
-									{
-										qstring func_name2;
-										if (get_func_name(&func_name2, insn.ops[0].addr) > 0)
-										{
-											unlink_entry e2;
-											e2.ea = insn.ops[0].addr;
-											e2.is_extern = true;
-											e2.is_local = false;
-											e2.module_index = i;
-											add_entry(e2);
-										}
-									}
-									else if (is_data(get_flags(insn.ops[0].addr)))
-									{
-										qstring data_name2;
-										if (get_name(&data_name2, insn.ops[0].addr) > 0)
-										{
-											ea_t data_start = get_item_head(insn.ops[0].addr);
-											unlink_entry e2;
-											e2.ea = data_start;
-											e2.is_extern = true;
-											e2.is_local = false;
-											e2.module_index = i;
-											add_entry(e2);
-										}
-									}
-								}
-								break;
-							}
-							switch (insn.ops[1].type)
-							{
-							case o_mem:
-							case o_displ:
-								if (!is_numop0(get_flags(k)))
-								{
-									if (is_code(get_flags(insn.ops[1].addr)))
-									{
-										qstring func_name2;
-										if (get_func_name(&func_name2, insn.ops[1].addr) > 0)
-										{
-											unlink_entry e2;
-											e2.ea = insn.ops[1].addr;
-											e2.is_extern = (insn.ops[1].addr < func_start || insn.ops[1].addr > func_start + func_size);
-											e2.is_local = (insn.ops[1].addr > func_start && insn.ops[1].addr < func_start + func_size);
-											e2.module_index = i;
-											add_entry(e2);
-										}
-									}
-									else if (is_data(get_flags(insn.ops[1].addr)))
-									{
-										qstring data_name2;
-										if (get_name(&data_name2, insn.ops[1].addr) > 0)
-										{
-											ea_t data_start = get_item_head(insn.ops[1].addr);
-											unlink_entry e2;
-											e2.ea = data_start;
-											e2.is_extern = (insn.ops[1].addr < func_start || insn.ops[1].addr > func_start + func_size);
-											e2.is_local = (insn.ops[1].addr > func_start && insn.ops[1].addr < func_start + func_size);
-											e2.module_index = i;
-											add_entry(e2);
-										}
-									}
-								}
-								break;
-							case o_imm:
-								if (!is_numop1(get_flags(k)))
-								{
-									if (is_code(get_flags(insn.ops[1].value)))
-									{
-										qstring func_name2;
-										if (get_func_name(&func_name2, insn.ops[1].value) > 0)
-										{
-											unlink_entry e2;
-											e2.ea = insn.ops[1].value;
-											e2.is_extern = (insn.ops[1].addr < func_start || insn.ops[1].addr > func_start + func_size);
-											e2.is_local = (insn.ops[1].addr > func_start && insn.ops[1].addr < func_start + func_size);
-											e2.module_index = i;
-											add_entry(e2);
-										}
-									}
-									else if (is_data(get_flags(insn.ops[1].value)))
-									{
-										qstring data_name2;
-										if (get_name(&data_name2, insn.ops[1].value) > 0)
-										{
-											ea_t data_start = get_item_head(insn.ops[1].value);
-											unlink_entry e2;
-											e2.ea = data_start;
-											e2.is_extern = (insn.ops[1].addr < func_start || insn.ops[1].addr > func_start + func_size);
-											e2.is_local = (insn.ops[1].addr > func_start && insn.ops[1].addr < func_start + func_size);
-											e2.module_index = i;
-											add_entry(e2);
-										}
-									}
-								}
-								break;
-							case o_near:
-								if (insn.ops[1].dtype == dt_dword && (insn.ops[1].addr < func_start || insn.ops[1].addr > func_start + func_size))
-								{
-									if (is_code(get_flags(insn.ops[1].addr)))
-									{
-										qstring func_name2;
-										if (get_func_name(&func_name2, insn.ops[1].addr) > 0)
-										{
-											unlink_entry e2;
-											e2.ea = insn.ops[1].addr;
-											e2.is_extern = true;
-											e2.is_local = false;
-											e2.module_index = i;
-											add_entry(e2);
-										}
-									}
-									else if (is_data(get_flags(insn.ops[1].addr)))
-									{
-										qstring data_name2;
-										if (get_name(&data_name2, insn.ops[1].addr) > 0)
-										{
-											ea_t data_start = get_item_head(insn.ops[1].addr);
-											unlink_entry e2;
-											e2.ea = data_start;
-											e2.is_extern = true;
-											e2.is_local = false;
-											e2.module_index = i;
-											add_entry(e2);
-										}
-									}
-								}
-								break;
 							}
 						}
 						else
@@ -664,208 +568,112 @@ struct ahandler_unlink_func_t : public action_handler_t
 					int insn_size;
 					for (ea_t k = func_start; k < func_start + func_size; k += insn_size)
 					{
-						if (is_code(get_flags(k)) || is_align(get_flags(k)))
+						flags_t _flags = get_flags(k);
+						if (is_code(_flags) || is_align(_flags))
 						{
 							insn_size = decode_insn(&insn, k);
-							switch (insn.ops[0].type)
+							for (int index = 0; index < 2; index++)
 							{
-							case o_mem:
-							case o_displ:
-								if (!is_numop0(get_flags(k)))
+								switch (insn.ops[index].type)
 								{
-									if (is_code(get_flags(insn.ops[0].addr)))
+								case o_mem:
+								case o_displ:
+									if (!is_numop(_flags, index))
 									{
-										qstring func_name2;
-										if (get_func_name(&func_name2, insn.ops[0].addr) > 0)
+										if (is_code(get_flags(insn.ops[index].addr)))
 										{
-											unlink_entry e2;
-											e2.ea = insn.ops[0].addr;
-											e2.is_extern = (insn.ops[0].addr < func_start || insn.ops[0].addr > func_start + func_size);
-											e2.is_local = (insn.ops[0].addr > func_start && insn.ops[0].addr < func_start + func_size);
-											e2.module_index = i;
-											add_entry(e2);
+											qstring func_name2;
+											if (get_func_name(&func_name2, insn.ops[index].addr) > 0)
+											{
+												unlink_entry e2;
+												e2.ea = insn.ops[index].addr;
+												e2.is_extern = (insn.ops[index].addr < func_start || insn.ops[index].addr > func_start + func_size);
+												e2.is_local = (insn.ops[index].addr > func_start && insn.ops[index].addr < func_start + func_size);
+												e2.module_index = i;
+												add_entry(e2);
+											}
+										}
+										else if (is_data(get_flags(insn.ops[index].addr)))
+										{
+											qstring data_name2;
+											if (get_name(&data_name2, insn.ops[index].addr) > 0)
+											{
+												ea_t data_start = get_item_head(insn.ops[index].addr);
+												unlink_entry e2;
+												e2.ea = data_start;
+												e2.is_extern = (insn.ops[index].addr < func_start || insn.ops[index].addr > func_start + func_size);
+												e2.is_local = (insn.ops[index].addr > func_start && insn.ops[index].addr < func_start + func_size);
+												e2.module_index = i;
+												add_entry(e2);
+											}
 										}
 									}
-									else if (is_data(get_flags(insn.ops[0].addr)))
+									break;
+								case o_imm:
+									if (!is_numop(_flags, index))
 									{
-										qstring data_name2;
-										if (get_name(&data_name2, insn.ops[0].addr) > 0)
+										if (is_code(get_flags(insn.ops[index].value)))
 										{
-											ea_t data_start = get_item_head(insn.ops[0].addr);
-											unlink_entry e2;
-											e2.ea = data_start;
-											e2.is_extern = (insn.ops[0].addr < func_start || insn.ops[0].addr > func_start + func_size);
-											e2.is_local = (insn.ops[0].addr > func_start && insn.ops[0].addr < func_start + func_size);
-											e2.module_index = i;
-											add_entry(e2);
+											qstring func_name2;
+											if (get_func_name(&func_name2, insn.ops[index].value) > 0)
+											{
+												unlink_entry e2;
+												e2.ea = insn.ops[index].value;
+												e2.is_extern = (insn.ops[index].addr < func_start || insn.ops[index].addr > func_start + func_size);
+												e2.is_local = (insn.ops[index].addr > func_start && insn.ops[index].addr < func_start + func_size);
+												e2.module_index = i;
+												add_entry(e2);
+											}
+										}
+										else if (is_data(get_flags(insn.ops[index].value)))
+										{
+											qstring data_name2;
+											if (get_name(&data_name2, insn.ops[index].value) > 0)
+											{
+												ea_t data_start = get_item_head(insn.ops[index].value);
+												unlink_entry e2;
+												e2.ea = data_start;
+												e2.is_extern = (insn.ops[index].addr < func_start || insn.ops[index].addr > func_start + func_size);
+												e2.is_local = (insn.ops[index].addr > func_start && insn.ops[index].addr < func_start + func_size);
+												e2.module_index = i;
+												add_entry(e2);
+											}
 										}
 									}
+									break;
+								case o_near:
+									if (insn.ops[index].dtype == dt_dword && (insn.ops[index].addr < func_start || insn.ops[index].addr > func_start + func_size))
+									{
+										if (is_code(get_flags(insn.ops[index].addr)))
+										{
+											qstring func_name2;
+											if (get_func_name(&func_name2, insn.ops[index].addr) > 0)
+											{
+												unlink_entry e2;
+												e2.ea = insn.ops[index].addr;
+												e2.is_extern = true;
+												e2.is_local = false;
+												e2.module_index = i;
+												add_entry(e2);
+											}
+										}
+										else if (is_data(get_flags(insn.ops[index].addr)))
+										{
+											qstring data_name2;
+											if (get_name(&data_name2, insn.ops[index].addr) > 0)
+											{
+												ea_t data_start = get_item_head(insn.ops[index].addr);
+												unlink_entry e2;
+												e2.ea = data_start;
+												e2.is_extern = true;
+												e2.is_local = false;
+												e2.module_index = i;
+												add_entry(e2);
+											}
+										}
+									}
+									break;
 								}
-								break;
-							case o_imm:
-								if (!is_numop0(get_flags(k)))
-								{
-									if (is_code(get_flags(insn.ops[0].value)))
-									{
-										qstring func_name2;
-										if (get_func_name(&func_name2, insn.ops[0].value) > 0)
-										{
-											unlink_entry e2;
-											e2.ea = insn.ops[0].value;
-											e2.is_extern = (insn.ops[0].addr < func_start || insn.ops[0].addr > func_start + func_size);
-											e2.is_local = (insn.ops[0].addr > func_start && insn.ops[0].addr < func_start + func_size);
-											e2.module_index = i;
-											add_entry(e2);
-										}
-									}
-									else if (is_data(get_flags(insn.ops[0].value)))
-									{
-										qstring data_name2;
-										if (get_name(&data_name2, insn.ops[0].value) > 0)
-										{
-											ea_t data_start = get_item_head(insn.ops[0].value);
-											unlink_entry e2;
-											e2.ea = data_start;
-											e2.is_extern = (insn.ops[0].addr < func_start || insn.ops[0].addr > func_start + func_size);
-											e2.is_local = (insn.ops[0].addr > func_start && insn.ops[0].addr < func_start + func_size);
-											e2.module_index = i;
-											add_entry(e2);
-										}
-									}
-								}
-								break;
-							case o_near:
-								if (insn.ops[0].dtype == dt_dword && (insn.ops[0].addr < func_start || insn.ops[0].addr > func_start + func_size))
-								{
-									if (is_code(get_flags(insn.ops[0].addr)))
-									{
-										qstring func_name2;
-										if (get_func_name(&func_name2, insn.ops[0].addr) > 0)
-										{
-											unlink_entry e2;
-											e2.ea = insn.ops[0].addr;
-											e2.is_extern = true;
-											e2.is_local = false;
-											e2.module_index = i;
-											add_entry(e2);
-										}
-									}
-									else if (is_data(get_flags(insn.ops[0].addr)))
-									{
-										qstring data_name2;
-										if (get_name(&data_name2, insn.ops[0].addr) > 0)
-										{
-											ea_t data_start = get_item_head(insn.ops[0].addr);
-											unlink_entry e2;
-											e2.ea = data_start;
-											e2.is_extern = true;
-											e2.is_local = false;
-											e2.module_index = i;
-											add_entry(e2);
-										}
-									}
-								}
-								break;
-							}
-							switch (insn.ops[1].type)
-							{
-							case o_mem:
-							case o_displ:
-								if (!is_numop0(get_flags(k)))
-								{
-									if (is_code(get_flags(insn.ops[1].addr)))
-									{
-										qstring func_name2;
-										if (get_func_name(&func_name2, insn.ops[1].addr) > 0)
-										{
-											unlink_entry e2;
-											e2.ea = insn.ops[1].addr;
-											e2.is_extern = (insn.ops[1].addr < func_start || insn.ops[1].addr > func_start + func_size);
-											e2.is_local = (insn.ops[1].addr > func_start && insn.ops[1].addr < func_start + func_size);
-											e2.module_index = i;
-											add_entry(e2);
-										}
-									}
-									else if (is_data(get_flags(insn.ops[1].addr)))
-									{
-										qstring data_name2;
-										if (get_name(&data_name2, insn.ops[1].addr) > 0)
-										{
-											ea_t data_start = get_item_head(insn.ops[1].addr);
-											unlink_entry e2;
-											e2.ea = data_start;
-											e2.is_extern = (insn.ops[1].addr < func_start || insn.ops[1].addr > func_start + func_size);
-											e2.is_local = (insn.ops[1].addr > func_start && insn.ops[1].addr < func_start + func_size);
-											e2.module_index = i;
-											add_entry(e2);
-										}
-									}
-								}
-								break;
-							case o_imm:
-								if (!is_numop1(get_flags(k)))
-								{
-									if (is_code(get_flags(insn.ops[1].value)))
-									{
-										qstring func_name2;
-										if (get_func_name(&func_name2, insn.ops[1].value) > 0)
-										{
-											unlink_entry e2;
-											e2.ea = insn.ops[1].value;
-											e2.is_extern = (insn.ops[1].addr < func_start || insn.ops[1].addr > func_start + func_size);
-											e2.is_local = (insn.ops[1].addr > func_start && insn.ops[1].addr < func_start + func_size);
-											e2.module_index = i;
-											add_entry(e2);
-										}
-									}
-									else if (is_data(get_flags(insn.ops[1].value)))
-									{
-										qstring data_name2;
-										if (get_name(&data_name2, insn.ops[1].value) > 0)
-										{
-											ea_t data_start = get_item_head(insn.ops[1].value);
-											unlink_entry e2;
-											e2.ea = data_start;
-											e2.is_extern = (insn.ops[1].addr < func_start || insn.ops[1].addr > func_start + func_size);
-											e2.is_local = (insn.ops[1].addr > func_start && insn.ops[1].addr < func_start + func_size);
-											e2.module_index = i;
-											add_entry(e2);
-										}
-									}
-								}
-								break;
-							case o_near:
-								if (insn.ops[1].dtype == dt_dword && (insn.ops[1].addr < func_start || insn.ops[1].addr > func_start + func_size))
-								{
-									if (is_code(get_flags(insn.ops[1].addr)))
-									{
-										qstring func_name2;
-										if (get_func_name(&func_name2, insn.ops[1].addr) > 0)
-										{
-											unlink_entry e2;
-											e2.ea = insn.ops[1].addr;
-											e2.is_extern = true;
-											e2.is_local = false;
-											e2.module_index = i;
-											add_entry(e2);
-										}
-									}
-									else if (is_data(get_flags(insn.ops[1].addr)))
-									{
-										qstring data_name2;
-										if (get_name(&data_name2, insn.ops[1].addr) > 0)
-										{
-											ea_t data_start = get_item_head(insn.ops[1].addr);
-											unlink_entry e2;
-											e2.ea = data_start;
-											e2.is_extern = true;
-											e2.is_local = false;
-											e2.module_index = i;
-											add_entry(e2);
-										}
-									}
-								}
-								break;
 							}
 						}
 						else
@@ -1058,7 +866,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 			qstring segment;
 			ea_t ea = vector[i].ea;
 			get_segm_name(&segment, getseg(ea));
-			if (segment == ".text")
+			if (segment == ".text" || segment == "BEGTEXT")
 			{
 				qstring func_name;
 				if (get_func_name(&func_name, ea) > 0 && !vector[i].is_local)
@@ -1131,7 +939,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 					RDataSymbols.push_back(s);
 				}
 			}
-			else if (segment == ".data")
+			else if (segment == ".data" || segment == "DGROUP")
 			{
 				qstring data_name;
 				if (get_name(&data_name, ea) > 0)
@@ -1218,114 +1026,65 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 						for (ea_t k = CodeSymbols[j].Address; k < CodeSymbols[j].Address + CodeSymbols[j].Size; k += insn_size)
 						{
 							int pos = k - CodeSymbols[j].Address;
-							if (is_code(get_flags(k)) || is_align(get_flags(k)))
+							flags_t _flags = get_flags(k);
+							if (is_code(_flags) || is_align(_flags))
 							{
 								insn_size = decode_insn(&insn, k);
-								switch (insn.ops[0].type)
+								for (int index = 0; index < 2; index++)
 								{
-								case o_mem:
-								case o_displ:
-									if (!is_numop0(get_flags(k)))
+									switch (insn.ops[index].type)
 									{
-										if (IsSymbol(insn.ops[0].addr))
+									case o_mem:
+									case o_displ:
+										if (!is_numop(_flags, index))
 										{
-											Symbol& fsym = FindSymbol(insn.ops[0].addr);
-											RelocationEntry r;
-											r.Rva = pos + insn.ops[0].offb;
-											r.Symbol = &fsym;
-											unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[0].offb);
-											unsigned int offset = insn.ops[0].addr - fsym.Address;
-											*data = offset;
-											CodeSymbols[j].Relocations.push_back(r);
+											if (IsSymbol(insn.ops[index].addr))
+											{
+												Symbol& fsym = FindSymbol(insn.ops[index].addr);
+												RelocationEntry r;
+												r.Rva = pos + insn.ops[index].offb;
+												r.Symbol = &fsym;
+												unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[index].offb);
+												unsigned int offset = insn.ops[index].addr - fsym.Address;
+												*data = offset;
+												CodeSymbols[j].Relocations.push_back(r);
+											}
 										}
-									}
-									break;
-								case o_imm:
-									if (!is_numop0(get_flags(k)))
-									{
-										if (IsSymbol(insn.ops[0].value))
+										break;
+									case o_imm:
+										if (!is_numop(_flags, index))
 										{
-											Symbol& fsym = FindSymbol(insn.ops[0].value);
-											RelocationEntry r;
-											r.Rva = pos + insn.ops[0].offb;
-											r.Symbol = &fsym;
-											unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[0].offb);
-											unsigned int offset = insn.ops[0].value - fsym.Address;
-											*data = offset;
-											CodeSymbols[j].Relocations.push_back(r);
+											if (IsSymbol(insn.ops[index].value))
+											{
+												Symbol& fsym = FindSymbol(insn.ops[index].value);
+												RelocationEntry r;
+												r.Rva = pos + insn.ops[index].offb;
+												r.Symbol = &fsym;
+												unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[index].offb);
+												unsigned int offset = insn.ops[index].value - fsym.Address;
+												*data = offset;
+												CodeSymbols[j].Relocations.push_back(r);
+											}
 										}
-									}
-									break;
-								case o_near:
-									if (insn.ops[0].dtype == dt_dword && (insn.ops[0].addr < CodeSymbols[j].Address || insn.ops[0].addr > CodeSymbols[j].Address + CodeSymbols[j].Size))
-									{
-										if (IsSymbol(insn.ops[0].addr))
+										break;
+									case o_near:
+										if (insn.ops[index].dtype == dt_dword && (insn.ops[index].addr < CodeSymbols[j].Address || insn.ops[index].addr > CodeSymbols[j].Address + CodeSymbols[j].Size))
 										{
-											Symbol& fsym = FindSymbol(insn.ops[0].addr);
-											RelocationEntry r;
-											r.Rva = pos + insn.ops[0].offb;
-											r.Symbol = &fsym;
-											r.Type = IMAGE_REL_I386_REL32;
-											unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[0].offb);
-											unsigned int offset = insn.ops[0].addr - fsym.Address;
-											*data = offset;
-											CodeSymbols[j].Relocations.push_back(r);
+											if (IsSymbol(insn.ops[index].addr))
+											{
+												Symbol& fsym = FindSymbol(insn.ops[index].addr);
+												RelocationEntry r;
+												r.Rva = pos + insn.ops[index].offb;
+												r.Symbol = &fsym;
+												r.Type = IMAGE_REL_I386_REL32;
+												unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[index].offb);
+												unsigned int offset = insn.ops[index].addr - fsym.Address;
+												*data = offset;
+												CodeSymbols[j].Relocations.push_back(r);
+											}
 										}
+										break;
 									}
-									break;
-								}
-								switch (insn.ops[1].type)
-								{
-								case o_mem:
-								case o_displ:
-									if (!is_numop0(get_flags(k)))
-									{
-										if (IsSymbol(insn.ops[1].addr))
-										{
-											Symbol& fsym = FindSymbol(insn.ops[1].addr);
-											RelocationEntry r;
-											r.Rva = pos + insn.ops[1].offb;
-											r.Symbol = &fsym;
-											unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[1].offb);
-											unsigned int offset = insn.ops[1].addr - fsym.Address;
-											*data = offset;
-											CodeSymbols[j].Relocations.push_back(r);
-										}
-									}
-									break;
-								case o_imm:
-									if (!is_numop1(get_flags(k)))
-									{
-										if (IsSymbol(insn.ops[1].value))
-										{
-											Symbol& fsym = FindSymbol(insn.ops[1].value);
-											RelocationEntry r;
-											r.Rva = pos + insn.ops[1].offb;
-											r.Symbol = &fsym;
-											unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[1].offb);
-											unsigned int offset = insn.ops[1].value - fsym.Address;
-											*data = offset;
-											CodeSymbols[j].Relocations.push_back(r);
-										}
-									}
-									break;
-								case o_near:
-									if (insn.ops[1].dtype == dt_dword && (insn.ops[1].addr < CodeSymbols[j].Address || insn.ops[1].addr > CodeSymbols[j].Address + CodeSymbols[j].Size))
-									{
-										if (IsSymbol(insn.ops[1].addr))
-										{
-											Symbol& fsym = FindSymbol(insn.ops[1].addr);
-											RelocationEntry r;
-											r.Rva = pos + insn.ops[1].offb;
-											r.Symbol = &fsym;
-											r.Type = IMAGE_REL_I386_REL32;
-											unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[1].offb);
-											unsigned int offset = insn.ops[1].addr - fsym.Address;
-											*data = offset;
-											CodeSymbols[j].Relocations.push_back(r);
-										}
-									}
-									break;
 								}
 							}
 							else
@@ -1553,7 +1312,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 		int CompileType = COMPILE_CPP;
 		int CompilerIDVersion = 29913;
 		int FeatureEnum = Report_Dev11 | C_CppModule | Unknown3 | SafeSEH | KernelAware;
-		memcpy(symbols[cursymbol].symbol.N.ShortName, "@comp.id", 8);
+		memcpy(symbols[cursymbol].symbol.N.ShortName, "@comp.id", IMAGE_SIZEOF_SHORT_NAME);
 		symbols[cursymbol].symbol.Value = (CompileType << 16) | CompilerIDVersion;
 		symbols[cursymbol].symbol.SectionNumber = IMAGE_SYM_ABSOLUTE;
 		symbols[cursymbol].symbol.Type = 0;
@@ -1561,7 +1320,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 		symbols[cursymbol].symbol.NumberOfAuxSymbols = 0;
 		cursymbol++;
 		cursymnum++;
-		memcpy(symbols[cursymbol].symbol.N.ShortName, "@feat.00", 8);
+		memcpy(symbols[cursymbol].symbol.N.ShortName, "@feat.00", IMAGE_SIZEOF_SHORT_NAME);
 		symbols[cursymbol].symbol.Value = FeatureEnum;
 		symbols[cursymbol].symbol.SectionNumber = IMAGE_SYM_ABSOLUTE;
 		symbols[cursymbol].symbol.Type = 0;
@@ -1569,7 +1328,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 		symbols[cursymbol].symbol.NumberOfAuxSymbols = 0;
 		cursymbol++;
 		cursymnum++;
-		memcpy(sections[cursection].Name, ".debug$S", 8);
+		memcpy(sections[cursection].Name, ".debug$S", IMAGE_SIZEOF_SHORT_NAME);
 		sections[cursection].Misc.VirtualSize = 0;
 		sections[cursection].VirtualAddress = 0;
 		sections[cursection].SizeOfRawData = DebugSize;
@@ -1584,7 +1343,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 		sectiondata[cursection] = DebugSSection;
 		cursection++;
 		CurrentFilePos += DebugSize;
-		memcpy(symbols[cursymbol].symbol.N.ShortName, ".debug$S", 8);
+		memcpy(symbols[cursymbol].symbol.N.ShortName, ".debug$S", IMAGE_SIZEOF_SHORT_NAME);
 		symbols[cursymbol].symbol.Value = 0;
 		symbols[cursymbol].symbol.SectionNumber = (SHORT)cursection;
 		symbols[cursymbol].symbol.Type = 0;
@@ -1604,7 +1363,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 		{
 			if (!DataSymbols[i].IsExtern)
 			{
-				memcpy(sections[cursection].Name, ".data\0\0\0", 8);
+				memcpy(sections[cursection].Name, ".data\0\0\0", IMAGE_SIZEOF_SHORT_NAME);
 				sections[cursection].Misc.VirtualSize = 0;
 				sections[cursection].VirtualAddress = 0;
 				sections[cursection].SizeOfRawData = DataSymbols[i].Size;
@@ -1656,7 +1415,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 				cursection++;
 				DataSymbols[i].SectionNumber = cursection;
 				DataSymbols[i].SectionSymbolNumber = cursymnum;
-				memcpy(symbols[cursymbol].symbol.N.ShortName, ".data\0\0\0", 8);
+				memcpy(symbols[cursymbol].symbol.N.ShortName, ".data\0\0\0", IMAGE_SIZEOF_SHORT_NAME);
 				symbols[cursymbol].symbol.Value = 0;
 				symbols[cursymbol].symbol.SectionNumber = (SHORT)cursection;
 				symbols[cursymbol].symbol.Type = 0;
@@ -1802,7 +1561,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 		{
 			if (!RDataSymbols[i].IsExtern)
 			{
-				memcpy(sections[cursection].Name, ".rdata\0\0", 8);
+				memcpy(sections[cursection].Name, ".rdata\0\0", IMAGE_SIZEOF_SHORT_NAME);
 				sections[cursection].Misc.VirtualSize = 0;
 				sections[cursection].VirtualAddress = 0;
 				sections[cursection].SizeOfRawData = RDataSymbols[i].Size;
@@ -1836,7 +1595,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 				cursection++;
 				RDataSymbols[i].SectionNumber = cursection;
 				RDataSymbols[i].SectionSymbolNumber = cursymnum;
-				memcpy(symbols[cursymbol].symbol.N.ShortName, ".rdata\0\0", 8);
+				memcpy(symbols[cursymbol].symbol.N.ShortName, ".rdata\0\0", IMAGE_SIZEOF_SHORT_NAME);
 				symbols[cursymbol].symbol.Value = 0;
 				symbols[cursymbol].symbol.SectionNumber = (SHORT)cursection;
 				symbols[cursymbol].symbol.Type = 0;
@@ -1895,7 +1654,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 		{
 			if (!BSSSymbols[i].IsExtern)
 			{
-				memcpy(sections[cursection].Name, ".bss\0\0\0", 8);
+				memcpy(sections[cursection].Name, ".bss\0\0\0", IMAGE_SIZEOF_SHORT_NAME);
 				sections[cursection].Misc.VirtualSize = 0;
 				sections[cursection].VirtualAddress = 0;
 				sections[cursection].SizeOfRawData = BSSSymbols[i].Size;
@@ -1947,7 +1706,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 				cursection++;
 				BSSSymbols[i].SectionNumber = cursection;
 				BSSSymbols[i].SectionSymbolNumber = cursymnum;
-				memcpy(symbols[cursymbol].symbol.N.ShortName, ".bss\0\0\0", 8);
+				memcpy(symbols[cursymbol].symbol.N.ShortName, ".bss\0\0\0", IMAGE_SIZEOF_SHORT_NAME);
 				symbols[cursymbol].symbol.Value = 0;
 				symbols[cursymbol].symbol.SectionNumber = (SHORT)cursection;
 				symbols[cursymbol].symbol.Type = 0;
