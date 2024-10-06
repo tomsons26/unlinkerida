@@ -106,7 +106,7 @@ struct Symbol
 {
 	qstring Name;
 	ea_t Address;
-	ea_t Size;
+	ssize_t Size;
 	ea_t Offset;
 	bool IsExtern;
 	bool IsLocal;
@@ -116,7 +116,7 @@ struct Symbol
 	int SectionNumber;
 	int SectionSymbolNumber;
 	int EntrySymbolNumber;
-	Symbol() : Address(0), Size(0), Offset(0), IsExtern(false), IsLocal(false), Data(0), SectionNumber(0), SectionSymbolNumber(0), EntrySymbolNumber(0)
+	Symbol() : Address(0), Size(0), Offset(0), IsExtern(false), IsLocal(false), IsData(false), Data(0), SectionNumber(0), SectionSymbolNumber(0), EntrySymbolNumber(0)
 	{
 	}
 	bool operator==(const Symbol& that) = delete;
@@ -242,7 +242,7 @@ void idaapi entry_chooser_t::get_row(
 	if (is_code(get_flags(ea)))
 	{
 		qstring func_name;
-		if (get_func_name(&func_name, ea) > 0)
+		if (get_func_name(&func_name, ea) > 0 && !entries[n].is_local)
 		{
 			cols[0] = func_name;
 			size_t s = getinf(INF_SHORT_DEMNAMES);
@@ -265,6 +265,17 @@ void idaapi entry_chooser_t::get_row(
 			if (func)
 			{
 				attrs->color = func->color;
+			}
+		}
+		else if (entries[n].is_local)
+		{
+			qstring data_name;
+			if (get_name(&data_name, ea) > 0)
+			{
+				cols[0] = data_name;
+				cols[1] = "Local Label";
+				cols[2].sprnt("%x", ea);
+				cols[3] = modules[entries[n].module_index];
 			}
 		}
 	}
@@ -948,9 +959,9 @@ qvector<Symbol> BSSSymbols;
 
 bool IsSymbol(ea_t address)
 {
-	for (size_t i = CodeSymbols.size(); i >= 1; i--)
+	for (size_t i = 0; i < CodeSymbols.size(); i++)
 	{
-		if (address >= CodeSymbols[i].Address && address < CodeSymbols[i].Address + CodeSymbols[i].Size)
+		if (address >= CodeSymbols[CodeSymbols.size() - i - 1].Address && address < CodeSymbols[CodeSymbols.size() - i - 1].Address + CodeSymbols[CodeSymbols.size() - i - 1].Size)
 		{
 			return true;
 		}
@@ -988,13 +999,13 @@ bool IsSymbol(ea_t address)
 
 Symbol& FindSymbol(ea_t address, bool local = true)
 {
-	for (size_t i = CodeSymbols.size(); i >= 1; i--)
+	for (size_t i = 0; i < CodeSymbols.size(); i++)
 	{
-		if (address >= CodeSymbols[i].Address && address < CodeSymbols[i].Address + CodeSymbols[i].Size)
+		if (address >= CodeSymbols[CodeSymbols.size() - i - 1].Address && address < CodeSymbols[CodeSymbols.size() - i - 1].Address + CodeSymbols[CodeSymbols.size() - i - 1].Size)
 		{
-			if (local || !CodeSymbols[i].IsLocal)
+			if (local || !CodeSymbols[CodeSymbols.size() - i - 1].IsLocal)
 			{
-				return CodeSymbols[i];
+				return CodeSymbols[CodeSymbols.size() - i - 1];
 			}
 		}
 	}
@@ -1363,7 +1374,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 		{
 			if (!RDataSymbols[j].IsExtern && is_off0(get_flags(RDataSymbols[j].Address)))
 			{
-				for (ea_t k = 0; k < RDataSymbols[j].Size; k += 4)
+				for (ssize_t k = 0; k < RDataSymbols[j].Size; k += 4)
 				{
 					unsigned int* data = (unsigned int*)(RDataSymbols[j].Data + k);
 					if (IsSymbol(*data))
@@ -1383,7 +1394,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 		{
 			if (!DataSymbols[j].IsExtern && is_off0(get_flags(DataSymbols[j].Address)) && DataSymbols[j].Data)
 			{
-				for (ea_t k = 0; k < DataSymbols[j].Size; k += 4)
+				for (ssize_t k = 0; k < DataSymbols[j].Size; k += 4)
 				{
 					unsigned int* data = (unsigned int*)(DataSymbols[j].Data + k);
 					if (IsSymbol(*data))
