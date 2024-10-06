@@ -93,7 +93,7 @@ struct SymbolTableEntry
 };
 struct RelocationEntry
 {
-	unsigned long Rva;
+	ea_t Rva;
 	Symbol* Symbol;
 	unsigned short Type;
 	RelocationEntry() : Rva(0), Symbol(0), Type(IMAGE_REL_I386_DIR32)
@@ -105,15 +105,18 @@ struct RelocationEntry
 struct Symbol
 {
 	qstring Name;
-	unsigned long Address;
-	unsigned long Size;
+	ea_t Address;
+	ea_t Size;
+	ea_t Offset;
 	bool IsExtern;
+	bool IsLocal;
+	bool IsData;
 	unsigned char* Data;
 	qvector<RelocationEntry> Relocations;
 	int SectionNumber;
 	int SectionSymbolNumber;
 	int EntrySymbolNumber;
-	Symbol() : Address(0), Size(0), IsExtern(false), Data(0), SectionNumber(0), SectionSymbolNumber(0), EntrySymbolNumber(0)
+	Symbol() : Address(0), Size(0), Offset(0), IsExtern(false), IsLocal(false), Data(0), SectionNumber(0), SectionSymbolNumber(0), EntrySymbolNumber(0)
 	{
 	}
 	bool operator==(const Symbol& that) = delete;
@@ -138,6 +141,7 @@ struct unlink_entry
 	ea_t ea;
 	unsigned int module_index;
 	bool is_extern;
+	bool is_local;
 };
 
 bool operator== (const unlink_entry& u1, const unlink_entry& u2)
@@ -280,6 +284,10 @@ void idaapi entry_chooser_t::get_row(
 			{
 				cols[1] = "Extern Data";
 			}
+			else if (entries[n].is_local)
+			{
+				cols[1] = "Local Data";
+			}
 			else
 			{
 				cols[1] = "Data";
@@ -359,6 +367,7 @@ struct ahandler_unlink_t : public action_handler_t
 					unlink_entry e;
 					e.ea = func_start;
 					e.is_extern = false;
+					e.is_local = false;
 					e.module_index = i;
 					int func_size = func_end - func_start;
 					add_entry(e);
@@ -382,7 +391,8 @@ struct ahandler_unlink_t : public action_handler_t
 										{
 											unlink_entry e2;
 											e2.ea = insn.ops[0].addr;
-											e2.is_extern = true;
+											e2.is_extern = (insn.ops[0].addr < func_start || insn.ops[0].addr > func_start + func_size);
+											e2.is_local = (insn.ops[0].addr > func_start && insn.ops[0].addr < func_start + func_size);
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -395,7 +405,8 @@ struct ahandler_unlink_t : public action_handler_t
 											ea_t data_start = get_item_head(insn.ops[0].addr);
 											unlink_entry e2;
 											e2.ea = data_start;
-											e2.is_extern = true;
+											e2.is_extern = (insn.ops[0].addr < func_start || insn.ops[0].addr > func_start + func_size);
+											e2.is_local = (insn.ops[0].addr > func_start && insn.ops[0].addr < func_start + func_size);
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -412,7 +423,8 @@ struct ahandler_unlink_t : public action_handler_t
 										{
 											unlink_entry e2;
 											e2.ea = insn.ops[0].value;
-											e2.is_extern = true;
+											e2.is_extern = (insn.ops[0].addr < func_start || insn.ops[0].addr > func_start + func_size);
+											e2.is_local = (insn.ops[0].addr > func_start && insn.ops[0].addr < func_start + func_size);
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -425,7 +437,8 @@ struct ahandler_unlink_t : public action_handler_t
 											ea_t data_start = get_item_head(insn.ops[0].value);
 											unlink_entry e2;
 											e2.ea = data_start;
-											e2.is_extern = true;
+											e2.is_extern = (insn.ops[0].addr < func_start || insn.ops[0].addr > func_start + func_size);
+											e2.is_local = (insn.ops[0].addr > func_start && insn.ops[0].addr < func_start + func_size);
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -443,6 +456,7 @@ struct ahandler_unlink_t : public action_handler_t
 											unlink_entry e2;
 											e2.ea = insn.ops[0].addr;
 											e2.is_extern = true;
+											e2.is_local = false;
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -456,6 +470,7 @@ struct ahandler_unlink_t : public action_handler_t
 											unlink_entry e2;
 											e2.ea = data_start;
 											e2.is_extern = true;
+											e2.is_local = false;
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -476,7 +491,8 @@ struct ahandler_unlink_t : public action_handler_t
 										{
 											unlink_entry e2;
 											e2.ea = insn.ops[1].addr;
-											e2.is_extern = true;
+											e2.is_extern = (insn.ops[1].addr < func_start || insn.ops[1].addr > func_start + func_size);
+											e2.is_local = (insn.ops[1].addr > func_start && insn.ops[1].addr < func_start + func_size);
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -489,7 +505,8 @@ struct ahandler_unlink_t : public action_handler_t
 											ea_t data_start = get_item_head(insn.ops[1].addr);
 											unlink_entry e2;
 											e2.ea = data_start;
-											e2.is_extern = true;
+											e2.is_extern = (insn.ops[1].addr < func_start || insn.ops[1].addr > func_start + func_size);
+											e2.is_local = (insn.ops[1].addr > func_start && insn.ops[1].addr < func_start + func_size);
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -506,7 +523,8 @@ struct ahandler_unlink_t : public action_handler_t
 										{
 											unlink_entry e2;
 											e2.ea = insn.ops[1].value;
-											e2.is_extern = true;
+											e2.is_extern = (insn.ops[1].addr < func_start || insn.ops[1].addr > func_start + func_size);
+											e2.is_local = (insn.ops[1].addr > func_start && insn.ops[1].addr < func_start + func_size);
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -519,7 +537,8 @@ struct ahandler_unlink_t : public action_handler_t
 											ea_t data_start = get_item_head(insn.ops[1].value);
 											unlink_entry e2;
 											e2.ea = data_start;
-											e2.is_extern = true;
+											e2.is_extern = (insn.ops[1].addr < func_start || insn.ops[1].addr > func_start + func_size);
+											e2.is_local = (insn.ops[1].addr > func_start && insn.ops[1].addr < func_start + func_size);
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -537,6 +556,7 @@ struct ahandler_unlink_t : public action_handler_t
 											unlink_entry e2;
 											e2.ea = insn.ops[1].addr;
 											e2.is_extern = true;
+											e2.is_local = false;
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -550,6 +570,7 @@ struct ahandler_unlink_t : public action_handler_t
 											unlink_entry e2;
 											e2.ea = data_start;
 											e2.is_extern = true;
+											e2.is_local = false;
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -560,6 +581,18 @@ struct ahandler_unlink_t : public action_handler_t
 						}
 						else
 						{
+							uint32 address = get_dword(k);
+							
+							if ((address > func_start && address < func_start + func_size))
+							{
+								unlink_entry e2;
+								e2.ea = address;
+								e2.is_extern = false;
+								e2.is_local = true;
+								e2.module_index = i;
+								add_entry(e2);
+							}
+
 							insn_size = 4;
 						}
 					}
@@ -578,6 +611,7 @@ struct ahandler_unlink_t : public action_handler_t
 					unlink_entry e;
 					e.ea = data_start;
 					e.is_extern = false;
+					e.is_local = false;
 					e.module_index = i;
 					add_entry(e);
 				}
@@ -611,6 +645,7 @@ struct ahandler_unlink_func_t : public action_handler_t
 					unlink_entry e;
 					e.ea = func_start;
 					e.is_extern = false;
+					e.is_local = false;
 					e.module_index = i;
 					int func_size = func_end - func_start;
 					add_entry(e);
@@ -634,7 +669,8 @@ struct ahandler_unlink_func_t : public action_handler_t
 										{
 											unlink_entry e2;
 											e2.ea = insn.ops[0].addr;
-											e2.is_extern = true;
+											e2.is_extern = (insn.ops[0].addr < func_start || insn.ops[0].addr > func_start + func_size);
+											e2.is_local = (insn.ops[0].addr > func_start && insn.ops[0].addr < func_start + func_size);
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -647,7 +683,8 @@ struct ahandler_unlink_func_t : public action_handler_t
 											ea_t data_start = get_item_head(insn.ops[0].addr);
 											unlink_entry e2;
 											e2.ea = data_start;
-											e2.is_extern = true;
+											e2.is_extern = (insn.ops[0].addr < func_start || insn.ops[0].addr > func_start + func_size);
+											e2.is_local = (insn.ops[0].addr > func_start && insn.ops[0].addr < func_start + func_size);
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -664,7 +701,8 @@ struct ahandler_unlink_func_t : public action_handler_t
 										{
 											unlink_entry e2;
 											e2.ea = insn.ops[0].value;
-											e2.is_extern = true;
+											e2.is_extern = (insn.ops[0].addr < func_start || insn.ops[0].addr > func_start + func_size);
+											e2.is_local = (insn.ops[0].addr > func_start && insn.ops[0].addr < func_start + func_size);
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -677,7 +715,8 @@ struct ahandler_unlink_func_t : public action_handler_t
 											ea_t data_start = get_item_head(insn.ops[0].value);
 											unlink_entry e2;
 											e2.ea = data_start;
-											e2.is_extern = true;
+											e2.is_extern = (insn.ops[0].addr < func_start || insn.ops[0].addr > func_start + func_size);
+											e2.is_local = (insn.ops[0].addr > func_start && insn.ops[0].addr < func_start + func_size);
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -695,6 +734,7 @@ struct ahandler_unlink_func_t : public action_handler_t
 											unlink_entry e2;
 											e2.ea = insn.ops[0].addr;
 											e2.is_extern = true;
+											e2.is_local = false;
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -708,6 +748,7 @@ struct ahandler_unlink_func_t : public action_handler_t
 											unlink_entry e2;
 											e2.ea = data_start;
 											e2.is_extern = true;
+											e2.is_local = false;
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -728,7 +769,8 @@ struct ahandler_unlink_func_t : public action_handler_t
 										{
 											unlink_entry e2;
 											e2.ea = insn.ops[1].addr;
-											e2.is_extern = true;
+											e2.is_extern = (insn.ops[1].addr < func_start || insn.ops[1].addr > func_start + func_size);
+											e2.is_local = (insn.ops[1].addr > func_start && insn.ops[1].addr < func_start + func_size);
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -741,7 +783,8 @@ struct ahandler_unlink_func_t : public action_handler_t
 											ea_t data_start = get_item_head(insn.ops[1].addr);
 											unlink_entry e2;
 											e2.ea = data_start;
-											e2.is_extern = true;
+											e2.is_extern = (insn.ops[1].addr < func_start || insn.ops[1].addr > func_start + func_size);
+											e2.is_local = (insn.ops[1].addr > func_start && insn.ops[1].addr < func_start + func_size);
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -758,7 +801,8 @@ struct ahandler_unlink_func_t : public action_handler_t
 										{
 											unlink_entry e2;
 											e2.ea = insn.ops[1].value;
-											e2.is_extern = true;
+											e2.is_extern = (insn.ops[1].addr < func_start || insn.ops[1].addr > func_start + func_size);
+											e2.is_local = (insn.ops[1].addr > func_start && insn.ops[1].addr < func_start + func_size);
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -771,7 +815,8 @@ struct ahandler_unlink_func_t : public action_handler_t
 											ea_t data_start = get_item_head(insn.ops[1].value);
 											unlink_entry e2;
 											e2.ea = data_start;
-											e2.is_extern = true;
+											e2.is_extern = (insn.ops[1].addr < func_start || insn.ops[1].addr > func_start + func_size);
+											e2.is_local = (insn.ops[1].addr > func_start && insn.ops[1].addr < func_start + func_size);
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -789,6 +834,7 @@ struct ahandler_unlink_func_t : public action_handler_t
 											unlink_entry e2;
 											e2.ea = insn.ops[1].addr;
 											e2.is_extern = true;
+											e2.is_local = false;
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -802,6 +848,7 @@ struct ahandler_unlink_func_t : public action_handler_t
 											unlink_entry e2;
 											e2.ea = data_start;
 											e2.is_extern = true;
+											e2.is_local = false;
 											e2.module_index = i;
 											add_entry(e2);
 										}
@@ -812,6 +859,18 @@ struct ahandler_unlink_func_t : public action_handler_t
 						}
 						else
 						{
+							uint32 address = get_dword(k);
+							
+							if ((address > func_start && address < func_start + func_size))
+							{
+								unlink_entry e2;
+								e2.ea = address;
+								e2.is_extern = false;
+								e2.is_local = true;
+								e2.module_index = i;
+								add_entry(e2);
+							}
+
 							insn_size = 4;
 						}
 					}
@@ -846,6 +905,7 @@ struct ahandler_unlink_extern_t : public action_handler_t
 					unlink_entry e;
 					e.ea = func_start;
 					e.is_extern = true;
+					e.is_local = false;
 					e.module_index = i;
 					add_entry(e);
 				}
@@ -863,6 +923,7 @@ struct ahandler_unlink_extern_t : public action_handler_t
 					unlink_entry e;
 					e.ea = data_start;
 					e.is_extern = true;
+					e.is_local = false;
 					e.module_index = i;
 					add_entry(e);
 				}
@@ -885,9 +946,9 @@ qvector<Symbol> IDataSymbols;
 qvector<Symbol> BSSSymbols;
 
 
-bool IsSymbol(unsigned long address)
+bool IsSymbol(ea_t address)
 {
-	for (size_t i = 0; i < CodeSymbols.size(); i++)
+	for (size_t i = CodeSymbols.size(); i >= 1; i--)
 	{
 		if (address >= CodeSymbols[i].Address && address < CodeSymbols[i].Address + CodeSymbols[i].Size)
 		{
@@ -925,13 +986,16 @@ bool IsSymbol(unsigned long address)
 	return false;
 }
 
-Symbol& FindSymbol(unsigned long address)
+Symbol& FindSymbol(ea_t address, bool local = true)
 {
-	for (size_t i = 0; i < CodeSymbols.size(); i++)
+	for (size_t i = CodeSymbols.size(); i >= 1; i--)
 	{
 		if (address >= CodeSymbols[i].Address && address < CodeSymbols[i].Address + CodeSymbols[i].Size)
 		{
-			return CodeSymbols[i];
+			if (local || !CodeSymbols[i].IsLocal)
+			{
+				return CodeSymbols[i];
+			}
 		}
 	}
 	for (size_t i = 0; i < RDataSymbols.size(); i++)
@@ -986,13 +1050,16 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 			if (segment == ".text")
 			{
 				qstring func_name;
-				if (get_func_name(&func_name, ea) > 0)
+				if (get_func_name(&func_name, ea) > 0 && !vector[i].is_local)
 				{
 					iterate_func_chunks(get_func(ea), get_func_chunks, nullptr);
 					s.Name = func_name;
 					s.Address = ea;
 					s.Size = func_end - func_start;
+					s.Offset = 0;
 					s.IsExtern = vector[i].is_extern;
+					s.IsLocal = false;
+					s.IsData = false;
 					if (!s.IsExtern)
 					{
 						s.Data = new unsigned char[s.Size];
@@ -1011,9 +1078,12 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 					{
 						s.Name = data_name;
 						s.Address = ea;
+						s.Offset = 0;
 						s.Size = get_item_size(ea);
 						s.IsExtern = vector[i].is_extern;
-						if (!s.IsExtern)
+						s.IsLocal = vector[i].is_local;
+						s.IsData = true;
+						if (!s.IsExtern && !s.IsLocal)
 						{
 							s.Data = new unsigned char[s.Size];
 							get_bytes(s.Data, s.Size, s.Address);
@@ -1022,7 +1092,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 						{
 							s.Data = nullptr;
 						}
-						RDataSymbols.push_back(s);
+						CodeSymbols.push_back(s);
 					}
 				}
 			}
@@ -1034,7 +1104,10 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 					s.Name = data_name;
 					s.Address = ea;
 					s.Size = get_item_size(ea);
+					s.Offset = 0;
 					s.IsExtern = vector[i].is_extern;
+					s.IsLocal = false;
+					s.IsData = true;
 					if (!s.IsExtern)
 					{
 						s.Data = new unsigned char[s.Size];
@@ -1055,7 +1128,10 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 					s.Name = data_name;
 					s.Address = ea;
 					s.Size = get_item_size(ea);
+					s.Offset = 0;
 					s.IsExtern = vector[i].is_extern;
+					s.IsLocal = false;
+					s.IsData = true;
 					if (!s.IsExtern)
 					{
 						if (is_loaded(s.Address))
@@ -1085,7 +1161,10 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 					s.Name = data_name;
 					s.Address = ea;
 					s.Size = get_item_size(ea);
+					s.Offset = 0;
 					s.IsExtern = true;
+					s.IsLocal = false;
+					s.IsData = true;
 					s.Data = nullptr;
 					IDataSymbols.push_back(s);
 				}
@@ -1098,7 +1177,10 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 					s.Name = data_name;
 					s.Address = ea;
 					s.Size = get_item_size(ea);
+					s.Offset = 0;
 					s.IsExtern = vector[i].is_extern;
+					s.IsLocal = false;
+					s.IsData = true;
 					if (!s.IsExtern && is_loaded(s.Address))
 					{
 						s.Data = new unsigned char[s.Size];
@@ -1116,136 +1198,164 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 		{
 			if (!CodeSymbols[j].IsExtern)
 			{
-				insn_t insn;
-				int insn_size;
-				for (ea_t k = CodeSymbols[j].Address; k < CodeSymbols[j].Address + CodeSymbols[j].Size; k += insn_size)
+				if (!CodeSymbols[j].IsLocal)
 				{
-					int pos = k - CodeSymbols[j].Address;
-					if (is_code(get_flags(k)) || is_align(get_flags(k)))
+					if (!CodeSymbols[j].IsData)
 					{
-						insn_size = decode_insn(&insn, k);
-						switch (insn.ops[0].type)
+						insn_t insn;
+						int insn_size;
+						for (ea_t k = CodeSymbols[j].Address; k < CodeSymbols[j].Address + CodeSymbols[j].Size; k += insn_size)
 						{
-						case o_mem:
-						case o_displ:
-							if (!is_numop0(get_flags(k)))
+							int pos = k - CodeSymbols[j].Address;
+							if (is_code(get_flags(k)) || is_align(get_flags(k)))
 							{
-								if (IsSymbol(insn.ops[0].addr))
+								insn_size = decode_insn(&insn, k);
+								switch (insn.ops[0].type)
 								{
-									Symbol& fsym = FindSymbol(insn.ops[0].addr);
+								case o_mem:
+								case o_displ:
+									if (!is_numop0(get_flags(k)))
+									{
+										if (IsSymbol(insn.ops[0].addr))
+										{
+											Symbol& fsym = FindSymbol(insn.ops[0].addr);
+											RelocationEntry r;
+											r.Rva = pos + insn.ops[0].offb;
+											r.Symbol = &fsym;
+											unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[0].offb);
+											unsigned int offset = insn.ops[0].addr - fsym.Address;
+											*data = offset;
+											CodeSymbols[j].Relocations.push_back(r);
+										}
+									}
+									break;
+								case o_imm:
+									if (!is_numop0(get_flags(k)))
+									{
+										if (IsSymbol(insn.ops[0].value))
+										{
+											Symbol& fsym = FindSymbol(insn.ops[0].value);
+											RelocationEntry r;
+											r.Rva = pos + insn.ops[0].offb;
+											r.Symbol = &fsym;
+											unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[0].offb);
+											unsigned int offset = insn.ops[0].value - fsym.Address;
+											*data = offset;
+											CodeSymbols[j].Relocations.push_back(r);
+										}
+									}
+									break;
+								case o_near:
+									if (insn.ops[0].dtype == dt_dword && (insn.ops[0].addr < CodeSymbols[j].Address || insn.ops[0].addr > CodeSymbols[j].Address + CodeSymbols[j].Size))
+									{
+										if (IsSymbol(insn.ops[0].addr))
+										{
+											Symbol& fsym = FindSymbol(insn.ops[0].addr);
+											RelocationEntry r;
+											r.Rva = pos + insn.ops[0].offb;
+											r.Symbol = &fsym;
+											r.Type = IMAGE_REL_I386_REL32;
+											unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[0].offb);
+											unsigned int offset = insn.ops[0].addr - fsym.Address;
+											*data = offset;
+											CodeSymbols[j].Relocations.push_back(r);
+										}
+									}
+									break;
+								}
+								switch (insn.ops[1].type)
+								{
+								case o_mem:
+								case o_displ:
+									if (!is_numop0(get_flags(k)))
+									{
+										if (IsSymbol(insn.ops[1].addr))
+										{
+											Symbol& fsym = FindSymbol(insn.ops[1].addr);
+											RelocationEntry r;
+											r.Rva = pos + insn.ops[1].offb;
+											r.Symbol = &fsym;
+											unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[1].offb);
+											unsigned int offset = insn.ops[1].addr - fsym.Address;
+											*data = offset;
+											CodeSymbols[j].Relocations.push_back(r);
+										}
+									}
+									break;
+								case o_imm:
+									if (!is_numop1(get_flags(k)))
+									{
+										if (IsSymbol(insn.ops[1].value))
+										{
+											Symbol& fsym = FindSymbol(insn.ops[1].value);
+											RelocationEntry r;
+											r.Rva = pos + insn.ops[1].offb;
+											r.Symbol = &fsym;
+											unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[1].offb);
+											unsigned int offset = insn.ops[1].value - fsym.Address;
+											*data = offset;
+											CodeSymbols[j].Relocations.push_back(r);
+										}
+									}
+									break;
+								case o_near:
+									if (insn.ops[1].dtype == dt_dword && (insn.ops[1].addr < CodeSymbols[j].Address || insn.ops[1].addr > CodeSymbols[j].Address + CodeSymbols[j].Size))
+									{
+										if (IsSymbol(insn.ops[1].addr))
+										{
+											Symbol& fsym = FindSymbol(insn.ops[1].addr);
+											RelocationEntry r;
+											r.Rva = pos + insn.ops[1].offb;
+											r.Symbol = &fsym;
+											r.Type = IMAGE_REL_I386_REL32;
+											unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[1].offb);
+											unsigned int offset = insn.ops[1].addr - fsym.Address;
+											*data = offset;
+											CodeSymbols[j].Relocations.push_back(r);
+										}
+									}
+									break;
+								}
+							}
+							else
+							{
+								insn_size = 4;
+								unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos);
+								if (IsSymbol(*data))
+								{
+									Symbol& fsym = FindSymbol(*data);
 									RelocationEntry r;
-									r.Rva = pos + insn.ops[0].offb;
+									r.Rva = pos;
 									r.Symbol = &fsym;
-									unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[0].offb);
-									unsigned int offset = insn.ops[0].addr - fsym.Address;
+									unsigned int offset = *data - fsym.Address;
 									*data = offset;
 									CodeSymbols[j].Relocations.push_back(r);
 								}
 							}
-							break;
-						case o_imm:
-							if (!is_numop0(get_flags(k)))
-							{
-								if (IsSymbol(insn.ops[0].value))
-								{
-									Symbol& fsym = FindSymbol(insn.ops[0].value);
-									RelocationEntry r;
-									r.Rva = pos + insn.ops[0].offb;
-									r.Symbol = &fsym;
-									unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[0].offb);
-									unsigned int offset = insn.ops[0].value - fsym.Address;
-									*data = offset;
-									CodeSymbols[j].Relocations.push_back(r);
-								}
-							}
-							break;
-						case o_near:
-							if (insn.ops[0].dtype == dt_dword && (insn.ops[0].addr < CodeSymbols[j].Address || insn.ops[0].addr > CodeSymbols[j].Address + CodeSymbols[j].Size))
-							{
-								if (IsSymbol(insn.ops[0].addr))
-								{
-									Symbol& fsym = FindSymbol(insn.ops[0].addr);
-									RelocationEntry r;
-									r.Rva = pos + insn.ops[0].offb;
-									r.Symbol = &fsym;
-									r.Type = IMAGE_REL_I386_REL32;
-									unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[0].offb);
-									unsigned int offset = insn.ops[0].addr - fsym.Address;
-									*data = offset;
-									CodeSymbols[j].Relocations.push_back(r);
-								}
-							}
-							break;
-						}
-						switch (insn.ops[1].type)
-						{
-						case o_mem:
-						case o_displ:
-							if (!is_numop0(get_flags(k)))
-							{
-								if (IsSymbol(insn.ops[1].addr))
-								{
-									Symbol& fsym = FindSymbol(insn.ops[1].addr);
-									RelocationEntry r;
-									r.Rva = pos + insn.ops[1].offb;
-									r.Symbol = &fsym;
-									unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[1].offb);
-									unsigned int offset = insn.ops[1].addr - fsym.Address;
-									*data = offset;
-									CodeSymbols[j].Relocations.push_back(r);
-								}
-							}
-							break;
-						case o_imm:
-							if (!is_numop1(get_flags(k)))
-							{
-								if (IsSymbol(insn.ops[1].value))
-								{
-									Symbol& fsym = FindSymbol(insn.ops[1].value);
-									RelocationEntry r;
-									r.Rva = pos + insn.ops[1].offb;
-									r.Symbol = &fsym;
-									unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[1].offb);
-									unsigned int offset = insn.ops[1].value - fsym.Address;
-									*data = offset;
-									CodeSymbols[j].Relocations.push_back(r);
-								}
-							}
-							break;
-						case o_near:
-							if (insn.ops[1].dtype == dt_dword && (insn.ops[1].addr < CodeSymbols[j].Address || insn.ops[1].addr > CodeSymbols[j].Address + CodeSymbols[j].Size))
-							{
-								if (IsSymbol(insn.ops[1].addr))
-								{
-									Symbol& fsym = FindSymbol(insn.ops[1].addr);
-									RelocationEntry r;
-									r.Rva = pos + insn.ops[1].offb;
-									r.Symbol = &fsym;
-									r.Type = IMAGE_REL_I386_REL32;
-									unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[1].offb);
-									unsigned int offset = insn.ops[1].addr - fsym.Address;
-									*data = offset;
-									CodeSymbols[j].Relocations.push_back(r);
-								}
-							}
-							break;
 						}
 					}
 					else
 					{
-						insn_size = 4;
-						unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos);
-						if (IsSymbol(*data))
+						for (ea_t k = CodeSymbols[j].Address; k < CodeSymbols[j].Address + CodeSymbols[j].Size; k += 4)
 						{
-							Symbol& fsym = FindSymbol(*data);
-							RelocationEntry r;
-							r.Rva = pos;
-							r.Symbol = &fsym;
-							unsigned int offset = *data - fsym.Address;
-							*data = offset;
-							CodeSymbols[j].Relocations.push_back(r);
+							unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + k);
+							if (IsSymbol(*data))
+							{
+								Symbol& fsym = FindSymbol(*data);
+								RelocationEntry r;
+								r.Rva = k;
+								r.Symbol = &fsym;
+								unsigned int offset = *data - fsym.Address;
+								*data = offset;
+								CodeSymbols[j].Relocations.push_back(r);
+							}
 						}
 					}
+				}
+				else
+				{
+					Symbol& psym = FindSymbol(CodeSymbols[j].Address, false);
+					CodeSymbols[j].Offset = CodeSymbols[j].Address - psym.Address;
 				}
 			}
 		}
@@ -1253,7 +1363,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 		{
 			if (!RDataSymbols[j].IsExtern && is_off0(get_flags(RDataSymbols[j].Address)))
 			{
-				for (unsigned long k = 0; k < RDataSymbols[j].Size; k += 4)
+				for (ea_t k = 0; k < RDataSymbols[j].Size; k += 4)
 				{
 					unsigned int* data = (unsigned int*)(RDataSymbols[j].Data + k);
 					if (IsSymbol(*data))
@@ -1273,7 +1383,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 		{
 			if (!DataSymbols[j].IsExtern && is_off0(get_flags(DataSymbols[j].Address)) && DataSymbols[j].Data)
 			{
-				for (unsigned long k = 0; k < DataSymbols[j].Size; k += 4)
+				for (ea_t k = 0; k < DataSymbols[j].Size; k += 4)
 				{
 					unsigned int* data = (unsigned int*)(DataSymbols[j].Data + k);
 					if (IsSymbol(*data))
@@ -1301,7 +1411,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 			symbolcount++;
 			stringtablesize += CodeSymbols[i].Name.length();
 			stringtablesize++;
-			if (!CodeSymbols[i].IsExtern)
+			if (!CodeSymbols[i].IsExtern && !CodeSymbols[i].IsLocal)
 			{
 				symbolcount++;
 				sectioncount++;
@@ -1583,64 +1693,72 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 		{
 			if (!CodeSymbols[i].IsExtern)
 			{
-				memcpy(sections[cursection].Name, ".text$mn", 8);
-				sections[cursection].Misc.VirtualSize = 0;
-				sections[cursection].VirtualAddress = 0;
-				sections[cursection].SizeOfRawData = CodeSymbols[i].Size;
-				sections[cursection].PointerToRawData = CurrentFilePos;
-				CurrentFilePos += CodeSymbols[i].Size;
-				if (CodeSymbols[i].Relocations.size())
+				if (!CodeSymbols[i].IsLocal)
 				{
-					sections[cursection].PointerToRelocations = CurrentFilePos;
-					sections[cursection].NumberOfRelocations = (WORD)CodeSymbols[i].Relocations.size();
-					CurrentFilePos += CodeSymbols[i].Relocations.size() * sizeof(IMAGE_RELOCATION);
-					sectionrelocations[cursection] = new IMAGE_RELOCATION[CodeSymbols[i].Relocations.size()];
-					sectionrelocsymbols[cursection] = &CodeSymbols[i].Relocations;
-					for (size_t j = 0; j < CodeSymbols[i].Relocations.size(); j++)
+					memcpy(sections[cursection].Name, ".text", 8);
+					sections[cursection].Misc.VirtualSize = 0;
+					sections[cursection].VirtualAddress = 0;
+					sections[cursection].SizeOfRawData = CodeSymbols[i].Size;
+					sections[cursection].PointerToRawData = CurrentFilePos;
+					CurrentFilePos += CodeSymbols[i].Size;
+					if (CodeSymbols[i].Relocations.size())
 					{
-						sectionrelocations[cursection][j].VirtualAddress = CodeSymbols[i].Relocations[j].Rva;
-						sectionrelocations[cursection][j].SymbolTableIndex = 0;
-						sectionrelocations[cursection][j].Type = CodeSymbols[i].Relocations[j].Type;
+						sections[cursection].PointerToRelocations = CurrentFilePos;
+						sections[cursection].NumberOfRelocations = (WORD)CodeSymbols[i].Relocations.size();
+						CurrentFilePos += CodeSymbols[i].Relocations.size() * sizeof(IMAGE_RELOCATION);
+						sectionrelocations[cursection] = new IMAGE_RELOCATION[CodeSymbols[i].Relocations.size()];
+						sectionrelocsymbols[cursection] = &CodeSymbols[i].Relocations;
+						for (size_t j = 0; j < CodeSymbols[i].Relocations.size(); j++)
+						{
+							sectionrelocations[cursection][j].VirtualAddress = CodeSymbols[i].Relocations[j].Rva;
+							sectionrelocations[cursection][j].SymbolTableIndex = 0;
+							sectionrelocations[cursection][j].Type = CodeSymbols[i].Relocations[j].Type;
+						}
 					}
+					else
+					{
+						sections[cursection].PointerToRelocations = 0;
+						sections[cursection].NumberOfRelocations = 0;
+						sectionrelocations[cursection] = 0;
+						sectionrelocsymbols[cursection] = 0;
+					}
+					sections[cursection].PointerToLinenumbers = 0;
+					sections[cursection].NumberOfLinenumbers = 0;
+					sections[cursection].Characteristics = IMAGE_SCN_CNT_CODE | IMAGE_SCN_LNK_COMDAT | IMAGE_SCN_ALIGN_16BYTES | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_MEM_READ;
+					sectiondata[cursection] = CodeSymbols[i].Data;
+					cursection++;
+					CodeSymbols[i].SectionNumber = cursection;
+					CodeSymbols[i].SectionSymbolNumber = cursymnum;
+					memcpy(symbols[cursymbol].symbol.N.ShortName, ".text", 8);
+					symbols[cursymbol].symbol.Value = 0;
+					symbols[cursymbol].symbol.SectionNumber = (SHORT)cursection;
+					symbols[cursymbol].symbol.Type = 0;
+					symbols[cursymbol].symbol.StorageClass = IMAGE_SYM_CLASS_STATIC;
+					symbols[cursymbol].symbol.NumberOfAuxSymbols = 1;
+					symbols[cursymbol].aux.Section.Length = CodeSymbols[i].Size;
+					if (CodeSymbols[i].Relocations.size())
+					{
+						symbols[cursymbol].aux.Section.NumberOfRelocations = (WORD)CodeSymbols[i].Relocations.size();
+					}
+					else
+					{
+						symbols[cursymbol].aux.Section.NumberOfRelocations = 0;
+					}
+					symbols[cursymbol].aux.Section.NumberOfLinenumbers = 0;
+					symbols[cursymbol].aux.Section.CheckSum = CRC_MS(CodeSymbols[i].Data, CodeSymbols[i].Size, 0);
+					symbols[cursymbol].aux.Section.Number = 0;
+					symbols[cursymbol].aux.Section.Selection = 0;
+					symbols[cursymbol].aux.Section.bReserved = 0;
+					symbols[cursymbol].aux.Section.HighNumber = 0;
+					cursymbol++;
+					cursymnum++;
+					cursymnum++;
 				}
 				else
 				{
-					sections[cursection].PointerToRelocations = 0;
-					sections[cursection].NumberOfRelocations = 0;
-					sectionrelocations[cursection] = 0;
-					sectionrelocsymbols[cursection] = 0;
+					CodeSymbols[i].SectionNumber = cursection;
+					CodeSymbols[i].SectionSymbolNumber = cursymnum;
 				}
-				sections[cursection].PointerToLinenumbers = 0;
-				sections[cursection].NumberOfLinenumbers = 0;
-				sections[cursection].Characteristics = IMAGE_SCN_CNT_CODE | IMAGE_SCN_LNK_COMDAT | IMAGE_SCN_ALIGN_16BYTES | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_MEM_READ;
-				sectiondata[cursection] = CodeSymbols[i].Data;
-				cursection++;
-				CodeSymbols[i].SectionNumber = cursection;
-				CodeSymbols[i].SectionSymbolNumber = cursymnum;
-				memcpy(symbols[cursymbol].symbol.N.ShortName, ".text$mn", 8);
-				symbols[cursymbol].symbol.Value = 0;
-				symbols[cursymbol].symbol.SectionNumber = (SHORT)cursection;
-				symbols[cursymbol].symbol.Type = 0;
-				symbols[cursymbol].symbol.StorageClass = IMAGE_SYM_CLASS_STATIC;
-				symbols[cursymbol].symbol.NumberOfAuxSymbols = 1;
-				symbols[cursymbol].aux.Section.Length = CodeSymbols[i].Size;
-				if (CodeSymbols[i].Relocations.size())
-				{
-					symbols[cursymbol].aux.Section.NumberOfRelocations = (WORD)CodeSymbols[i].Relocations.size();
-				}
-				else
-				{
-					symbols[cursymbol].aux.Section.NumberOfRelocations = 0;
-				}
-				symbols[cursymbol].aux.Section.NumberOfLinenumbers = 0;
-				symbols[cursymbol].aux.Section.CheckSum = CRC_MS(CodeSymbols[i].Data, CodeSymbols[i].Size, 0);
-				symbols[cursymbol].aux.Section.Number = 0;
-				symbols[cursymbol].aux.Section.Selection = 0;
-				symbols[cursymbol].aux.Section.bReserved = 0;
-				symbols[cursymbol].aux.Section.HighNumber = 0;
-				cursymbol++;
-				cursymnum++;
-				cursymnum++;
 			}
 		}
 		for (size_t i = 0; i < CodeSymbols.size(); i++)
@@ -1648,10 +1766,18 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 			CodeSymbols[i].EntrySymbolNumber = cursymnum;
 			symbols[cursymbol].symbol.N.Name.Short = 0;
 			symbols[cursymbol].symbol.N.Name.Long = stroffset;
-			symbols[cursymbol].symbol.Value = 0;
+			symbols[cursymbol].symbol.Value = (DWORD)CodeSymbols[i].Offset;
 			symbols[cursymbol].symbol.SectionNumber = (SHORT)CodeSymbols[i].SectionNumber;
-			symbols[cursymbol].symbol.Type = 0x20; //DTYPE_FUNCTION
-			symbols[cursymbol].symbol.StorageClass = IMAGE_SYM_CLASS_EXTERNAL;
+			if (!CodeSymbols[i].IsLocal)
+			{
+				symbols[cursymbol].symbol.Type = 0x20; //DTYPE_FUNCTION
+				symbols[cursymbol].symbol.StorageClass = IMAGE_SYM_CLASS_EXTERNAL;
+			}
+			else
+			{
+				symbols[cursymbol].symbol.Type = 0;
+				symbols[cursymbol].symbol.StorageClass = IMAGE_SYM_CLASS_STATIC;
+			}
 			symbols[cursymbol].symbol.NumberOfAuxSymbols = 0;
 			cursymbol++;
 			cursymnum++;
@@ -2053,6 +2179,8 @@ ssize_t idaapi plugin_ctx_t::on_event(ssize_t code, va_list va)
 					val++;
 					node2.supval(val, &e.is_extern, sizeof(e.is_extern));
 					val++;
+					node2.supval(val, &e.is_local, sizeof(e.is_local));
+					val++;
 					node2.supval(val, &e.module_index, sizeof(e.module_index));
 					val++;
 					entries.push_back(e);
@@ -2087,6 +2215,8 @@ ssize_t idaapi plugin_ctx_t::on_event(ssize_t code, va_list va)
 				node2.supset(val, &entries[i].ea, sizeof(entries[i].ea));
 				val++;
 				node2.supset(val, &entries[i].is_extern, sizeof(entries[i].is_extern));
+				val++;
+				node2.supset(val, &entries[i].is_local, sizeof(entries[i].is_local));
 				val++;
 				node2.supset(val, &entries[i].module_index, sizeof(entries[i].module_index));
 				val++;
