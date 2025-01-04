@@ -2,10 +2,30 @@
 #include <idp.hpp>
 #include <loader.hpp>
 #include <kernwin.hpp>
+#include <help.h>
 #include <name.hpp>
 #include "cvinfo.h"
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+
+#define CHECK_SYMBOL_PTR
+
+#ifdef CHECK_SYMBOL_PTR
+bool is_bad_ptr(void * p)
+{
+	MEMORY_BASIC_INFORMATION mbi = {0};
+	if (::VirtualQuery(p, &mbi, sizeof(mbi))) {
+		DWORD mask = (PAGE_READONLY | PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY);
+		bool b = !(mbi.Protect & mask);
+		// check if the page is not a guard page
+		if (mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS)) {
+			b = true;
+		}
+		return b;
+	}
+	return true;
+}
+#endif
 
 unsigned long crc_table[256] = {
 	0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3,
@@ -361,21 +381,17 @@ void add_entry(unlink_entry e)
 	}
 }
 
-bool unlink_action(ea_t ea, bool bulk)
+bool unlink_action(ea_t ea, int i)
 {
 	if (ea != BADADDR)
 	{
-		int i = -1;
-		if (bulk) {
-			i = get_module();
-		}
 		if (is_code(get_flags(ea)))
 		{
 			qstring func_name;
 			if (get_func_name(&func_name, ea) > 0)
 			{
 				iterate_func_chunks(get_func(ea), get_func_chunks, nullptr);
-				if (!bulk) {
+				if (i == -1) {
 					i = get_module();
 				}
 				if (i != -1)
@@ -525,7 +541,7 @@ bool unlink_action(ea_t ea, bool bulk)
 			if (get_name(&data_name, ea) > 0)
 			{
 				ea_t data_start = get_item_head(ea);
-				if (!bulk) {
+				if (i == -1) {
 					i = get_module();
 				}
 				if (i != -1)
@@ -549,7 +565,7 @@ struct ahandler_unlink_t : public action_handler_t
 	virtual int idaapi activate(action_activation_ctx_t*) override
 	{
 		ea_t ea = get_screen_ea();
-		unlink_action(ea, false);
+		unlink_action(ea, -1);
 		return true;
 	}
 
@@ -571,7 +587,7 @@ struct ahandler_unlink_func_t : public action_handler_t
 			{
 				func_t* func = getn_func(ctx->chooser_selection[x]);
 				ea_t ea = func->start_ea;
-				unlink_action(ea, true);
+				unlink_action(ea, i);
 			}
 		}
 
@@ -971,6 +987,12 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 							{
 								insn_size = 4;
 								unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos);
+								#ifdef CHECK_SYMBOL_PTR
+								if (is_bad_ptr(data)) {
+									msg("unlinker --- 1 Invalid Address pos %x\n", (int)pos);
+									continue;
+								}
+								#endif
 								if (IsSymbol(*data))
 								{
 									Symbol& fsym = FindSymbol(*data);
@@ -989,6 +1011,12 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 						for (ea_t k = CodeSymbols[j].Address; k < CodeSymbols[j].Address + CodeSymbols[j].Size; k += 4)
 						{
 							unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + k);
+							#ifdef CHECK_SYMBOL_PTR
+							if (is_bad_ptr(data)) {
+								msg("unlinker --- 2 Invalid  k %x\n", (int)k);
+								continue;
+							}
+							#endif
 							if (IsSymbol(*data))
 							{
 								Symbol& fsym = FindSymbol(*data);
@@ -1016,6 +1044,12 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 				for (ssize_t k = 0; k < RDataSymbols[j].Size; k += 4)
 				{
 					unsigned int* data = (unsigned int*)(RDataSymbols[j].Data + k);
+					#ifdef CHECK_SYMBOL_PTR
+					if (is_bad_ptr(data)) {
+						msg("unlinker --- 3 Invalid Address k %x\n", (int)k);
+						continue;
+					}
+					#endif
 					if (IsSymbol(*data))
 					{
 						Symbol& fsym = FindSymbol(*data);
@@ -1036,6 +1070,12 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 				for (ssize_t k = 0; k < DataSymbols[j].Size; k += 4)
 				{
 					unsigned int* data = (unsigned int*)(DataSymbols[j].Data + k);
+					#ifdef CHECK_SYMBOL_PTR
+					if (is_bad_ptr(data)) {
+						msg("unlinker --- 4 Invalid Address k %x\n", (int)k);
+						continue;
+					}
+					#endif
 					if (IsSymbol(*data))
 					{
 						Symbol& fsym = FindSymbol(*data);
